@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>AccessPilot — Architecture</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg:#f8f9fb; --white:#ffffff; --border:#e4e7ed; --border2:#d0d5de;
+  --text:#111827; --text2:#374151; --muted:#6b7280;
+  --blue:#2563eb;   --blue-l:#eff6ff;   --blue-b:#bfdbfe;
+  --green:#16a34a;  --green-l:#f0fdf4;  --green-b:#bbf7d0;
+  --amber:#d97706;  --amber-l:#fffbeb;  --amber-b:#fde68a;
+  --purple:#7c3aed; --purple-l:#f5f3ff; --purple-b:#ddd6fe;
+  --cyan:#0891b2;   --cyan-l:#ecfeff;   --cyan-b:#a5f3fc;
+  --red:#dc2626;    --red-l:#fef2f2;    --red-b:#fecaca;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;line-height:1.5}
+.page{max-width:1100px;margin:0 auto;padding:48px 32px 80px}
+
+/* Header */
+.kicker{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--blue);
+  background:var(--blue-l);border:1px solid var(--blue-b);border-radius:4px;
+  padding:3px 10px;margin-bottom:12px}
+h1{font-size:clamp(26px,4vw,36px);font-weight:700;letter-spacing:-.025em;margin-bottom:6px}
+h1 span{color:var(--blue)}
+.sub{font-size:14px;color:var(--muted);margin-bottom:16px}
+.pills{display:flex;flex-wrap:wrap;gap:6px}
+.pill{font-size:11px;font-weight:500;padding:3px 10px;border-radius:99px;
+  border:1px solid var(--border2);color:var(--muted);background:var(--white)}
+.pill.b{border-color:var(--blue-b);color:var(--blue);background:var(--blue-l)}
+.pill.g{border-color:var(--green-b);color:var(--green);background:var(--green-l)}
+.pill.p{border-color:var(--purple-b);color:var(--purple);background:var(--purple-l)}
+.pill.a{border-color:var(--amber-b);color:var(--amber);background:var(--amber-l)}
+.pill.c{border-color:var(--cyan-b);color:var(--cyan);background:var(--cyan-l)}
+
+/* Section heading */
+.sh{font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);display:flex;align-items:center;gap:10px;
+  margin:44px 0 18px}
+.sh::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* SVG chart container */
+.chart{background:var(--white);border:1px solid var(--border);border-radius:12px;
+  padding:20px;overflow-x:auto}
+.chart svg{display:block;margin:0 auto}
+
+/* Component grid */
+.cgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.ccol{display:flex;flex-direction:column;gap:8px}
+.clabel{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  text-align:center;padding:7px;border-radius:6px}
+.clabel.fe{color:var(--blue);background:var(--blue-l);border:1px solid var(--blue-b)}
+.clabel.be{color:var(--purple);background:var(--purple-l);border:1px solid var(--purple-b)}
+.clabel.ai{color:var(--amber);background:var(--amber-l);border:1px solid var(--amber-b)}
+.card{background:var(--white);border:1px solid var(--border);border-radius:8px;
+  padding:11px 13px;border-left:3px solid transparent}
+.card.b{border-left-color:var(--blue)}
+.card.p{border-left-color:var(--purple)}
+.card.a{border-left-color:var(--amber)}
+.card.g{border-left-color:var(--green)}
+.card.c{border-left-color:var(--cyan)}
+.card.r{border-left-color:var(--red)}
+.cn{font-size:12px;font-weight:600;color:var(--text);margin-bottom:1px}
+.cf{font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-bottom:5px}
+.cd{font-size:11px;color:var(--text2);line-height:1.45}
+.tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.tag{font-size:10px;font-weight:500;padding:1px 7px;border-radius:3px}
+.tag.b{color:var(--blue);background:var(--blue-l);border:1px solid var(--blue-b)}
+.tag.g{color:var(--green);background:var(--green-l);border:1px solid var(--green-b)}
+.tag.a{color:var(--amber);background:var(--amber-l);border:1px solid var(--amber-b)}
+.tag.p{color:var(--purple);background:var(--purple-l);border:1px solid var(--purple-b)}
+.tag.c{color:var(--cyan);background:var(--cyan-l);border:1px solid var(--cyan-b)}
+.tag.r{color:var(--red);background:var(--red-l);border:1px solid var(--red-b)}
+
+/* Flow cards */
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.fc{background:var(--white);border:1px solid var(--border);border-radius:10px;padding:18px}
+.ft{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--text2);margin-bottom:12px;display:flex;align-items:center;gap:7px}
+.fd{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.fs{display:flex;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)}
+.fs:last-child{border-bottom:none}
+.fn{font-size:10px;font-weight:600;color:var(--muted);min-width:22px;
+  font-family:'DM Mono',monospace;padding-top:1px}
+.fx{font-size:11.5px;color:var(--text2);line-height:1.45}
+.fx b{color:var(--blue);font-weight:600}
+.fx em{color:var(--amber);font-style:normal;font-weight:500}
+
+/* WS events */
+.wgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.we{background:var(--white);border:1px solid var(--border);border-radius:7px;padding:10px 12px}
+.wn{font-size:11px;font-weight:600;color:var(--cyan);font-family:'DM Mono',monospace;margin-bottom:3px}
+.wd{font-size:10px;color:var(--muted);line-height:1.4}
+
+/* Deploy */
+.dgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.dc{background:var(--white);border:1px solid var(--border);border-radius:8px;
+  padding:16px 12px;text-align:center}
+.di{font-size:26px;margin-bottom:6px}
+.dn{font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px}
+.dd{font-size:10px;color:var(--muted);line-height:1.5}
+
+.footer{margin-top:44px;padding-top:18px;border-top:1px solid var(--border);
+  display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+.footer strong{color:var(--blue)}
+
+@media(max-width:860px){
+  .cgrid,.frow,.wgrid,.dgrid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:520px){
+  .cgrid,.dgrid{grid-template-columns:1fr}
+  .frow{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- Header -->
+<div class="kicker">◆ System Architecture</div>
+<h1>Access<span>Pilot</span> — Universal UI Agent</h1>
+<p class="sub">Visual browser automation powered by Gemini multimodal · No DOM access required</p>
+<div class="pills">
+  <span class="pill b">Vertex AI Gemini 1.5 Pro</span>
+  <span class="pill g">Playwright Chromium</span>
+  <span class="pill p">FastAPI + WebSocket</span>
+  <span class="pill a">OpenCV Vision</span>
+  <span class="pill c">React + Vite</span>
+  <span class="pill">Google Cloud Run</span>
+  <span class="pill">Firebase Hosting</span>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     SVG FLOWCHART
+══════════════════════════════════════════════════════════ -->
+<div class="sh">System Flowchart</div>
+<div class="chart">
+<svg width="1020" height="740" viewBox="0 0 1020 740"
+     xmlns="http://www.w3.org/2000/svg"
+     font-family="Inter,system-ui,sans-serif">
+<defs>
+  <marker id="ah"  markerWidth="9" markerHeight="9" refX="8" refY="3.5" orient="auto"><path d="M0,0 L0,7 L9,3.5 z" fill="#94a3b8"/></marker>
+  <marker id="ab"  markerWidth="9" markerHeight="9" refX="8" refY="3.5" orient="auto"><path d="M0,0 L0,7 L9,3.5 z" fill="#2563eb"/></marker>
+  <marker id="ag"  markerWidth="9" markerHeight="9" refX="8" refY="3.5" orient="auto"><path d="M0,0 L0,7 L9,3.5 z" fill="#16a34a"/></marker>
+  <marker id="aa"  markerWidth="9" markerHeight="9" refX="8" refY="3.5" orient="auto"><path d="M0,0 L0,7 L9,3.5 z" fill="#d97706"/></marker>
+  <marker id="ar"  markerWidth="9" markerHeight="9" refX="8" refY="3.5" orient="auto"><path d="M0,0 L0,7 L9,3.5 z" fill="#dc2626"/></marker>
+  <marker id="ac"  markerWidth="9" markerHeight="9" refX="8" refY="3.5" orient="auto"><path d="M0,0 L0,7 L9,3.5 z" fill="#0891b2"/></marker>
+</defs>
+
+<!-- Zone backgrounds -->
+<rect x="12" y="12" width="186" height="676" rx="10" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1.2"/>
+<text x="105" y="32" text-anchor="middle" font-size="10" font-weight="700" fill="#2563eb" letter-spacing=".07em">⚛  FRONTEND</text>
+
+<rect x="210" y="12" width="240" height="676" rx="10" fill="#f5f3ff" stroke="#ddd6fe" stroke-width="1.2"/>
+<text x="330" y="32" text-anchor="middle" font-size="10" font-weight="700" fill="#7c3aed" letter-spacing=".07em">🐍  BACKEND</text>
+
+<rect x="462" y="12" width="216" height="676" rx="10" fill="#fffbeb" stroke="#fde68a" stroke-width="1.2"/>
+<text x="570" y="32" text-anchor="middle" font-size="10" font-weight="700" fill="#d97706" letter-spacing=".07em">✦  AI + VISION</text>
+
+<rect x="690" y="12" width="318" height="676" rx="10" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1.2"/>
+<text x="849" y="32" text-anchor="middle" font-size="10" font-weight="700" fill="#16a34a" letter-spacing=".07em">🌐  BROWSER</text>
+
+<!-- ── NODE HELPER: rect + label drawn inline ── -->
+
+<!-- [User] -->
+<rect x="30" y="52" width="150" height="50" rx="8" fill="#fff" stroke="#bfdbfe" stroke-width="1.5"/>
+<text x="105" y="72" text-anchor="middle" font-size="13" font-weight="700" fill="#111827">👤 User</text>
+<text x="105" y="89" text-anchor="middle" font-size="10" fill="#6b7280">Natural language command</text>
+
+<!-- [React Frontend] -->
+<rect x="30" y="148" width="150" height="58" rx="8" fill="#fff" stroke="#bfdbfe" stroke-width="1.5"/>
+<text x="105" y="168" text-anchor="middle" font-size="12" font-weight="600" fill="#2563eb">React Frontend</text>
+<text x="105" y="184" text-anchor="middle" font-size="10" fill="#6b7280">Firebase Hosting</text>
+<text x="105" y="198" text-anchor="middle" font-size="10" fill="#6b7280">Port 3000</text>
+
+<!-- [WS Manager UI] -->
+<rect x="30" y="262" width="150" height="50" rx="8" fill="#fff" stroke="#bfdbfe" stroke-width="1.5"/>
+<text x="105" y="282" text-anchor="middle" font-size="11" font-weight="600" fill="#2563eb">WS Events → UI</text>
+<text x="105" y="298" text-anchor="middle" font-size="10" fill="#6b7280">Screen · Log · Reasoning</text>
+
+<!-- [FastAPI] -->
+<rect x="228" y="148" width="204" height="58" rx="8" fill="#fff" stroke="#ddd6fe" stroke-width="1.5"/>
+<text x="330" y="168" text-anchor="middle" font-size="12" font-weight="600" fill="#7c3aed">FastAPI Backend</text>
+<text x="330" y="184" text-anchor="middle" font-size="10" fill="#6b7280">Cloud Run · Port 8000</text>
+<text x="330" y="198" text-anchor="middle" font-size="10" fill="#6b7280">REST + WebSocket /ws/:id</text>
+
+<!-- [Agent Orchestrator] -->
+<rect x="228" y="262" width="204" height="58" rx="8" fill="#fff" stroke="#ddd6fe" stroke-width="1.5"/>
+<text x="330" y="282" text-anchor="middle" font-size="12" font-weight="600" fill="#7c3aed">Agent Orchestrator</text>
+<text x="330" y="298" text-anchor="middle" font-size="10" fill="#6b7280">core/agent.py</text>
+<text x="330" y="312" text-anchor="middle" font-size="10" fill="#6b7280">Feedback loop · TaskMemory</text>
+
+<!-- [ValidatedAction] -->
+<rect x="228" y="376" width="204" height="58" rx="8" fill="#fff" stroke="#fecaca" stroke-width="1.5"/>
+<text x="330" y="396" text-anchor="middle" font-size="12" font-weight="600" fill="#dc2626">ValidatedAction</text>
+<text x="330" y="412" text-anchor="middle" font-size="10" fill="#6b7280">Strict schema · from_raw()</text>
+<text x="330" y="426" text-anchor="middle" font-size="10" fill="#6b7280">conf &lt; 0.70 → ConfirmDialog</text>
+
+<!-- [Self-Healing] -->
+<rect x="228" y="494" width="204" height="58" rx="8" fill="#fff" stroke="#fde68a" stroke-width="1.5"/>
+<text x="330" y="514" text-anchor="middle" font-size="12" font-weight="600" fill="#d97706">Self-Healing Engine</text>
+<text x="330" y="530" text-anchor="middle" font-size="10" fill="#6b7280">core/self_healing.py</text>
+<text x="330" y="544" text-anchor="middle" font-size="10" fill="#6b7280">Scroll → Text-sim → Ask user</text>
+
+<!-- [Task Planner] -->
+<rect x="480" y="148" width="180" height="58" rx="8" fill="#fff" stroke="#fde68a" stroke-width="1.5"/>
+<text x="570" y="168" text-anchor="middle" font-size="12" font-weight="600" fill="#d97706">Task Planner</text>
+<text x="570" y="184" text-anchor="middle" font-size="10" fill="#6b7280">Gemini Text API</text>
+<text x="570" y="198" text-anchor="middle" font-size="10" fill="#6b7280">5-step plan + flags</text>
+
+<!-- [Gemini Vision] -->
+<rect x="480" y="262" width="180" height="58" rx="8" fill="#fff" stroke="#fde68a" stroke-width="1.5"/>
+<text x="570" y="282" text-anchor="middle" font-size="12" font-weight="600" fill="#d97706">Gemini Vision</text>
+<text x="570" y="298" text-anchor="middle" font-size="10" fill="#6b7280">Vertex AI gemini-1.5-pro</text>
+<text x="570" y="312" text-anchor="middle" font-size="10" fill="#6b7280">Screen analysis + Action JSON</text>
+
+<!-- [OpenCV] -->
+<rect x="480" y="376" width="180" height="58" rx="8" fill="#fff" stroke="#a5f3fc" stroke-width="1.5"/>
+<text x="570" y="396" text-anchor="middle" font-size="12" font-weight="600" fill="#0891b2">OpenCV Engine</text>
+<text x="570" y="412" text-anchor="middle" font-size="10" fill="#6b7280">vision/cv_engine.py</text>
+<text x="570" y="426" text-anchor="middle" font-size="10" fill="#6b7280">Button / input detection</text>
+
+<!-- [Vision Grounding] -->
+<rect x="480" y="494" width="180" height="58" rx="8" fill="#fff" stroke="#a5f3fc" stroke-width="1.5"/>
+<text x="570" y="514" text-anchor="middle" font-size="12" font-weight="600" fill="#0891b2">Vision Grounding</text>
+<text x="570" y="530" text-anchor="middle" font-size="10" fill="#6b7280">ground_cv_elements()</text>
+<text x="570" y="544" text-anchor="middle" font-size="10" fill="#6b7280">CV + Gemini IoU → combined</text>
+
+<!-- [Target Website] -->
+<rect x="706" y="148" width="286" height="58" rx="8" fill="#fff" stroke="#bbf7d0" stroke-width="1.5"/>
+<text x="849" y="168" text-anchor="middle" font-size="12" font-weight="600" fill="#16a34a">Target Website</text>
+<text x="849" y="184" text-anchor="middle" font-size="10" fill="#6b7280">Any web interface — no DOM access</text>
+<text x="849" y="198" text-anchor="middle" font-size="10" fill="#6b7280">Seen only via screenshots</text>
+
+<!-- [Playwright Browser] -->
+<rect x="706" y="262" width="286" height="58" rx="8" fill="#fff" stroke="#bbf7d0" stroke-width="1.5"/>
+<text x="849" y="282" text-anchor="middle" font-size="12" font-weight="600" fill="#16a34a">Playwright Browser</text>
+<text x="849" y="298" text-anchor="middle" font-size="10" fill="#6b7280">engine/automation.py · Chromium headless</text>
+<text x="849" y="312" text-anchor="middle" font-size="10" fill="#6b7280">CLICK · TYPE · SCROLL · NAVIGATE · 9 total</text>
+
+<!-- [Screenshot Capture] -->
+<rect x="706" y="376" width="286" height="58" rx="8" fill="#fff" stroke="#bbf7d0" stroke-width="1.5"/>
+<text x="849" y="396" text-anchor="middle" font-size="12" font-weight="600" fill="#16a34a">Screenshot Capture</text>
+<text x="849" y="412" text-anchor="middle" font-size="10" fill="#6b7280">take_screenshot() → PNG → JPEG</text>
+<text x="849" y="426" text-anchor="middle" font-size="10" fill="#6b7280">Sent to Gemini Vision + OpenCV</text>
+
+<!-- ══ ARROWS ══ -->
+
+<!-- User → Frontend -->
+<line x1="105" y1="102" x2="105" y2="144" stroke="#2563eb" stroke-width="1.8" marker-end="url(#ab)"/>
+<text x="116" y="127" font-size="9" fill="#2563eb" font-weight="600">command</text>
+
+<!-- Frontend → FastAPI (HTTP) -->
+<line x1="180" y1="177" x2="224" y2="177" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#ah)"/>
+<text x="202" y="170" text-anchor="middle" font-size="9" fill="#6b7280">POST /command</text>
+
+<!-- FastAPI → Agent -->
+<line x1="330" y1="206" x2="330" y2="258" stroke="#7c3aed" stroke-width="1.8" marker-end="url(#ab)"/>
+
+<!-- Agent → Task Planner (dashed) -->
+<line x1="432" y1="279" x2="476" y2="198" stroke="#d97706" stroke-width="1.4" stroke-dasharray="5,3" marker-end="url(#aa)"/>
+<text x="472" y="249" text-anchor="middle" font-size="9" fill="#d97706">plan request</text>
+
+<!-- Task Planner → Agent -->
+<line x1="476" y1="207" x2="436" y2="286" stroke="#16a34a" stroke-width="1.4" marker-end="url(#ag)"/>
+<text x="434" y="234" text-anchor="middle" font-size="9" fill="#16a34a">step plan</text>
+
+<!-- Agent → Gemini Vision -->
+<line x1="432" y1="291" x2="476" y2="291" stroke="#d97706" stroke-width="1.8" marker-end="url(#aa)"/>
+<text x="454" y="283" text-anchor="middle" font-size="9" fill="#d97706" font-weight="600">screenshot</text>
+
+<!-- Gemini Vision → Agent (action JSON) -->
+<line x1="476" y1="305" x2="432" y2="305" stroke="#16a34a" stroke-width="1.8" marker-end="url(#ag)"/>
+<text x="454" y="320" text-anchor="middle" font-size="9" fill="#16a34a" font-weight="600">action JSON</text>
+
+<!-- Agent → ValidatedAction -->
+<line x1="330" y1="320" x2="330" y2="372" stroke="#dc2626" stroke-width="1.8" marker-end="url(#ar)"/>
+<rect x="272" y="336" width="118" height="16" rx="3" fill="#fef2f2"/>
+<text x="331" y="347" text-anchor="middle" font-size="9" fill="#dc2626" font-weight="600">schema validate</text>
+
+<!-- ValidatedAction → Playwright (execute) -->
+<line x1="432" y1="405" x2="702" y2="300" stroke="#16a34a" stroke-width="1.8" marker-end="url(#ag)"/>
+<text x="590" y="365" text-anchor="middle" font-size="9" fill="#16a34a" font-weight="600">execute action</text>
+
+<!-- Playwright → Target Website -->
+<line x1="849" y1="258" x2="849" y2="210" stroke="#16a34a" stroke-width="1.8" marker-end="url(#ag)"/>
+<text x="884" y="238" text-anchor="middle" font-size="9" fill="#16a34a">CLICK/TYPE…</text>
+
+<!-- Playwright → Screenshot -->
+<line x1="849" y1="320" x2="849" y2="372" stroke="#16a34a" stroke-width="1.8" marker-end="url(#ag)"/>
+
+<!-- Screenshot → Gemini (feedback) -->
+<line x1="702" y1="415" x2="664" y2="320" stroke="#d97706" stroke-width="1.4" stroke-dasharray="5,3" marker-end="url(#aa)"/>
+<text x="700" y="378" text-anchor="middle" font-size="9" fill="#d97706">screenshot</text>
+
+<!-- Screenshot → OpenCV -->
+<line x1="702" y1="425" x2="664" y2="425" stroke="#0891b2" stroke-width="1.4" marker-end="url(#ac)"/>
+<text x="683" y="418" text-anchor="middle" font-size="9" fill="#0891b2">to CV</text>
+
+<!-- OpenCV → Vision Grounding -->
+<line x1="570" y1="434" x2="570" y2="490" stroke="#0891b2" stroke-width="1.4" marker-end="url(#ac)"/>
+
+<!-- Vision Grounding → Agent (grounded coords) -->
+<line x1="480" y1="523" x2="432" y2="412" stroke="#0891b2" stroke-width="1.4" marker-end="url(#ac)"/>
+<text x="436" y="476" text-anchor="middle" font-size="9" fill="#0891b2">CV regions</text>
+
+<!-- ValidatedAction → Self-Healing (on failure, dashed) -->
+<line x1="330" y1="434" x2="330" y2="490" stroke="#d97706" stroke-width="1.4" stroke-dasharray="5,3" marker-end="url(#aa)"/>
+<rect x="270" y="453" width="118" height="16" rx="3" fill="#fffbeb"/>
+<text x="329" y="464" text-anchor="middle" font-size="9" fill="#d97706" font-weight="600">on failure →</text>
+
+<!-- WS Manager → UI Panels -->
+<line x1="330" y1="262" x2="184" y2="280" stroke="#2563eb" stroke-width="1.4" stroke-dasharray="5,3" marker-end="url(#ab)"/>
+<text x="248" y="263" text-anchor="middle" font-size="9" fill="#2563eb">WS events</text>
+
+<!-- WS UI → Frontend -->
+<line x1="105" y1="262" x2="105" y2="210" stroke="#2563eb" stroke-width="1.4" marker-end="url(#ab)"/>
+
+<!-- conf < 0.70 note -->
+<rect x="228" y="445" width="204" height="18" rx="4" fill="#fef2f2" stroke="#fecaca" stroke-width="1"/>
+<text x="330" y="458" text-anchor="middle" font-size="9" fill="#dc2626" font-weight="500">⚠ conf &lt; 0.70 → ConfirmDialog pauses loop</text>
+
+<!-- ══ LEGEND ══ -->
+<rect x="12" y="624" width="996" height="52" rx="8" fill="#f8f9fb" stroke="#e4e7ed" stroke-width="1"/>
+<text x="26" y="643" font-size="9" font-weight="700" fill="#6b7280" letter-spacing=".08em">LEGEND</text>
+
+<line x1="26" y1="660" x2="64" y2="660" stroke="#2563eb" stroke-width="1.8" marker-end="url(#ab)"/>
+<text x="70" y="664" font-size="10" fill="#374151">Primary flow</text>
+
+<line x1="168" y1="660" x2="206" y2="660" stroke="#d97706" stroke-width="1.4" stroke-dasharray="5,3" marker-end="url(#aa)"/>
+<text x="212" y="664" font-size="10" fill="#374151">AI request</text>
+
+<line x1="300" y1="660" x2="338" y2="660" stroke="#16a34a" stroke-width="1.8" marker-end="url(#ag)"/>
+<text x="344" y="664" font-size="10" fill="#374151">Response / action</text>
+
+<line x1="468" y1="660" x2="506" y2="660" stroke="#0891b2" stroke-width="1.4" marker-end="url(#ac)"/>
+<text x="512" y="664" font-size="10" fill="#374151">CV detection</text>
+
+<line x1="618" y1="660" x2="656" y2="660" stroke="#dc2626" stroke-width="1.8" marker-end="url(#ar)"/>
+<text x="662" y="664" font-size="10" fill="#374151">Schema validation</text>
+
+<line x1="790" y1="660" x2="828" y2="660" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#ah)"/>
+<text x="834" y="664" font-size="10" fill="#374151">Feedback loop</text>
+</svg>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     COMPONENT REFERENCE
+══════════════════════════════════════════════════════════ -->
+<div class="sh">Component Reference</div>
+<div class="cgrid">
+
+  <div class="ccol">
+    <div class="clabel fe">⚛ React Frontend</div>
+    <div class="card b">
+      <div class="cn">App.jsx</div><div class="cf">frontend/src/App.jsx</div>
+      <div class="cd">Root layout. WS event handler using planRef to prevent reconnect loops. Wires ConfirmDialog approve/deny to WebSocket send().</div>
+      <div class="tags"><span class="tag b">3-column</span><span class="tag b">ErrorBoundary</span></div>
+    </div>
+    <div class="card b">
+      <div class="cn">CommandInput</div><div class="cf">components/CommandInput.jsx</div>
+      <div class="cd">Text + voice commands (Web Speech API), localStorage history, quick-command picker, optional target URL field.</div>
+      <div class="tags"><span class="tag b">Voice</span><span class="tag b">localStorage</span></div>
+    </div>
+    <div class="card b">
+      <div class="cn">ExplainableAction</div><div class="cf">components/ExplainableAction.jsx</div>
+      <div class="cd">Full action card: type, target element, reason, confidence bar, grounding chip (CV/Gemini/Combined), irreversible shield badge.</div>
+      <div class="tags"><span class="tag g">confidence bar</span><span class="tag a">grounding</span></div>
+    </div>
+    <div class="card b">
+      <div class="cn">ReasoningTrail</div><div class="cf">components/ReasoningTrail.jsx</div>
+      <div class="cd">Explainable AI Mode tab. Live step-by-step narrative with connector lines and success/failure indicators per action.</div>
+      <div class="tags"><span class="tag b">Explainable AI</span></div>
+    </div>
+    <div class="card r">
+      <div class="cn">ConfirmDialog</div><div class="cf">components/ConfirmDialog.jsx</div>
+      <div class="cd">Countdown modal for low-confidence (&lt;70%) and irreversible actions. Confidence bar shown. Auto-denies on timeout.</div>
+      <div class="tags"><span class="tag r">irreversible</span><span class="tag a">conf &lt;0.70</span></div>
+    </div>
+  </div>
+
+  <div class="ccol">
+    <div class="clabel be">🐍 FastAPI Backend</div>
+    <div class="card p">
+      <div class="cn">Agent Orchestrator</div><div class="cf">core/agent.py</div>
+      <div class="cd">Main feedback loop: screenshot → CV → Gemini → ValidatedAction → execute → memory update. 600s timeout, try/finally cleanup, MAX_STEPS=30.</div>
+      <div class="tags"><span class="tag p">feedback loop</span><span class="tag p">MAX_STEPS=30</span></div>
+    </div>
+    <div class="card p">
+      <div class="cn">TaskMemory</div><div class="cf">core/memory.py</div>
+      <div class="cd">Structured long-term context: completed_steps, last_screen_state, key_observations, grounding_hits. Serialised as JSON and injected into every Gemini prompt.</div>
+      <div class="tags"><span class="tag g">to_context_string()</span></div>
+    </div>
+    <div class="card r">
+      <div class="cn">ValidatedAction</div><div class="cf">core/models.py</div>
+      <div class="cd">Strict schema on every Gemini response. Rejects unknown types, CLICK without coords, TYPE without text. needs_confirmation() gates confidence &lt;0.70 and irreversible.</div>
+      <div class="tags"><span class="tag r">from_raw()</span><span class="tag a">CONF_THRESHOLD=0.70</span></div>
+    </div>
+    <div class="card a">
+      <div class="cn">SelfHealingEngine</div><div class="cf">core/self_healing.py</div>
+      <div class="cd">Three-stage recovery: ① scroll down ② token-overlap text-similarity search ③ scroll up / ask user. Human-readable broadcast at each stage.</div>
+      <div class="tags"><span class="tag c">text_similarity</span><span class="tag a">self-heal</span></div>
+    </div>
+    <div class="card g">
+      <div class="cn">Automation Engine</div><div class="cf">engine/automation.py</div>
+      <div class="cd">Playwright Chromium: 9 actions — CLICK, TYPE, SCROLL, PRESS, WAIT, NAVIGATE, HOVER, SELECT, CLEAR. PNG → JPEG compression. Explicit failure on all branches.</div>
+      <div class="tags"><span class="tag g">Playwright</span><span class="tag g">9 actions</span></div>
+    </div>
+    <div class="card p">
+      <div class="cn">Session Manager</div><div class="cf">core/session_manager.py</div>
+      <div class="cd">Per-session state, TTL eviction (60 min), concurrency cap (max 10). Stores pending_confirmation + asyncio.Event for WS confirmation handshake.</div>
+      <div class="tags"><span class="tag a">TTL 60 min</span><span class="tag p">max 10</span></div>
+    </div>
+  </div>
+
+  <div class="ccol">
+    <div class="clabel ai">✦ AI + Vision Layer</div>
+    <div class="card a">
+      <div class="cn">Gemini Client</div><div class="cf">core/gemini_client.py</div>
+      <div class="cd">Vertex AI Gemini 1.5 Pro. Four prompt functions: analyze_screen, create_task_plan, generate_next_action, recover_from_error. Full TaskMemory injected into every call.</div>
+      <div class="tags"><span class="tag a">vision + text</span><span class="tag a">structured JSON</span></div>
+    </div>
+    <div class="card a">
+      <div class="cn">Action Generation Prompt</div><div class="cf">ACTION_GENERATION_PROMPT</div>
+      <div class="cd">Returns structured JSON: action_type, target, reason, confidence, grounding_source (gemini/cv/combined), is_irreversible. All fields validated by ValidatedAction.</div>
+      <div class="tags"><span class="tag r">is_irreversible</span><span class="tag c">grounding_source</span></div>
+    </div>
+    <div class="card c">
+      <div class="cn">CV Engine</div><div class="cf">vision/cv_engine.py</div>
+      <div class="cd">OpenCV contour detection: buttons, inputs, colored CTAs. Annotates screenshots with bounding boxes. IoU-based deduplication. Graceful fallback on bad input.</div>
+      <div class="tags"><span class="tag c">OpenCV</span><span class="tag c">IoU dedup</span></div>
+    </div>
+    <div class="card c">
+      <div class="cn">Vision Grounding</div><div class="cf">ground_cv_elements()</div>
+      <div class="cd">Cross-references OpenCV regions with Gemini elements by IoU overlap. Source tagged cv / gemini / combined. Combined carries higher confidence boost.</div>
+      <div class="tags"><span class="tag c">combined</span><span class="tag g">+confidence</span></div>
+    </div>
+    <div class="card a">
+      <div class="cn">Demo Mode</div><div class="cf">_cv_assisted_mock()</div>
+      <div class="cd">Without GCP: real OpenCV analyses live screenshots and returns page-aware responses. Not hardcoded. All responses carry mock:true for UI transparency.</div>
+      <div class="tags"><span class="tag a">transparent</span><span class="tag g">real CV</span></div>
+    </div>
+    <div class="card p">
+      <div class="cn">WebSocket Manager</div><div class="cf">core/websocket_manager.py</div>
+      <div class="cd">Broadcasts 8 event types. ping/pong heartbeat. Routes confirm messages to session's asyncio.Event to resume the paused agent loop.</div>
+      <div class="tags"><span class="tag p">8 events</span><span class="tag b">heartbeat</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Agent Loop ══ -->
+<div class="sh">Agent Feedback Loop</div>
+<div class="frow">
+  <div class="fc">
+    <div class="ft"><div class="fd" style="background:#2563eb"></div>Per-Step Loop</div>
+    <div class="fs"><span class="fn">01</span><span class="fx"><b>Screenshot</b> captured by Playwright → JPEG compressed</span></div>
+    <div class="fs"><span class="fn">02</span><span class="fx"><b>OpenCV</b> detects buttons, inputs, colored CTAs</span></div>
+    <div class="fs"><span class="fn">03</span><span class="fx"><b>Gemini Vision</b> analyses screen with full <em>TaskMemory</em> context injected</span></div>
+    <div class="fs"><span class="fn">04</span><span class="fx"><b>Vision Grounding</b> cross-references CV + Gemini elements by IoU overlap</span></div>
+    <div class="fs"><span class="fn">05</span><span class="fx"><b>Gemini</b> generates action with target, reason, confidence, grounding_source</span></div>
+    <div class="fs"><span class="fn">06</span><span class="fx"><b>ValidatedAction.from_raw()</b> — schema enforced, malformed rejected</span></div>
+    <div class="fs"><span class="fn">07</span><span class="fx">If <em>confidence &lt; 0.70</em> or <em>irreversible</em> → pause, send confirm_required event</span></div>
+    <div class="fs"><span class="fn">08</span><span class="fx"><b>Playwright</b> executes validated action in real Chromium browser</span></div>
+    <div class="fs"><span class="fn">09</span><span class="fx"><b>TaskMemory</b> updated: step record, observation, grounding hits</span></div>
+    <div class="fs"><span class="fn">10</span><span class="fx">WS broadcasts screenshot + explainable action + memory summary to UI</span></div>
+  </div>
+  <div class="fc">
+    <div class="ft"><div class="fd" style="background:#d97706"></div>Self-Healing Recovery</div>
+    <div class="fs"><span class="fn">—</span><span class="fx">Action fails: element not found or timeout</span></div>
+    <div class="fs"><span class="fn">①</span><span class="fx"><b>Scroll down</b> — broadcasts <em>"The {target} was not visible. Scrolling the page to find it."</em></span></div>
+    <div class="fs"><span class="fn">②</span><span class="fx"><b>Text-similarity search</b> (token overlap) across all CV + Gemini elements. If found: <em>"The button moved. Located via text similarity (80%) at (72%, 82%)."</em></span></div>
+    <div class="fs"><span class="fn">②b</span><span class="fx">No match → <b>scroll up</b> to search full page</span></div>
+    <div class="fs"><span class="fn">③</span><span class="fx"><b>Ask user</b> — emits healing_failed WS event. <em>"Could not locate '{target}' after 2 attempts."</em></span></div>
+    <div class="fs"><span class="fn">④</span><span class="fx"><b>Gemini deep recovery</b> — fresh screenshot + full re-analysis + diagnosis</span></div>
+    <div class="fs"><span class="fn">⑤</span><span class="fx">Execute recovery action or abort if Gemini recommends it</span></div>
+  </div>
+</div>
+
+<!-- ══ WS Events ══ -->
+<div class="sh">WebSocket Events  (Backend → Frontend)</div>
+<div class="wgrid">
+  <div class="we"><div class="wn">screenshot</div><div class="wd">Annotated JPEG + step number after every action</div></div>
+  <div class="we"><div class="wn">action</div><div class="wd">type, target, reason, confidence, grounding_source, is_irreversible</div></div>
+  <div class="we"><div class="wn">analysis</div><div class="wd">Gemini analysis + CV region count + memory_summary string</div></div>
+  <div class="we"><div class="wn">plan</div><div class="wd">Task plan steps + success_criteria + irreversible_actions list</div></div>
+  <div class="we"><div class="wn">confirm_required</div><div class="wd">Pause for low-conf or irreversible — awaits {type:"confirm",approved:bool}</div></div>
+  <div class="we"><div class="wn">status</div><div class="wd">State changes: planning → running → completed / error</div></div>
+  <div class="we"><div class="wn">healing_failed</div><div class="wd">Self-healing exhausted — target unreachable, user guidance requested</div></div>
+  <div class="we"><div class="wn">log / error / pong</div><div class="wd">Step logs with level, error broadcasts, heartbeat responses</div></div>
+</div>
+
+<!-- ══ Deploy ══ -->
+<div class="sh">Deployment</div>
+<div class="dgrid">
+  <div class="dc"><div class="di">🔥</div><div class="dn">Firebase Hosting</div><div class="dd">React SPA · CDN<br/>nginx SPA fallback</div></div>
+  <div class="dc"><div class="di">☁️</div><div class="dn">Cloud Run</div><div class="dd">FastAPI backend<br/>2 vCPU / 2 GB · auto-scale</div></div>
+  <div class="dc"><div class="di">✦</div><div class="dn">Vertex AI</div><div class="dd">Gemini 1.5 Pro<br/>us-central1 · vision + text</div></div>
+  <div class="dc"><div class="di">🔧</div><div class="dn">Cloud Build</div><div class="dd">CI/CD pipeline<br/>Docker build + push</div></div>
+</div>
+
+<div class="footer">
+  <strong>AccessPilot</strong> — Universal UI Agent
+  <span>Gemini 1.5 Pro · Playwright · OpenCV · FastAPI · React</span>
+  <span>Google Cloud Hackathon 2025</span>
+</div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,60 @@
+version: '3.9'
+
+# AccessPilot — production-ready docker-compose
+#
+# Quick start:
+#   cp backend/.env.example backend/.env    # fill GOOGLE_CLOUD_PROJECT
+#   cp your-gcp-key.json backend/gcp-key.json
+#   docker-compose up --build
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT:-your-project-id}
+      - GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION:-us-central1}
+      - GOOGLE_APPLICATION_CREDENTIALS=/secrets/gcp-key.json
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-*}
+      - API_KEY=${API_KEY:-}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ${GCP_KEY_PATH:-./backend/gcp-key.json}:/secrets/gcp-key.json:ro
+    restart: unless-stopped
+    # Resource limits — prevent runaway Playwright processes
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Baked into JS bundle at build time
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+        VITE_WS_URL:  ${VITE_WS_URL:-ws://localhost:8000}
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M

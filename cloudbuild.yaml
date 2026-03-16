@@ -1,0 +1,47 @@
+steps:
+  # Build backend image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - build
+      - -t
+      - gcr.io/$PROJECT_ID/accesspilot-backend:$COMMIT_SHA
+      - ./backend
+
+  # Push image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - push
+      - gcr.io/$PROJECT_ID/accesspilot-backend:$COMMIT_SHA
+
+  # Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - accesspilot-backend
+      - --image=gcr.io/$PROJECT_ID/accesspilot-backend:$COMMIT_SHA
+      - --region=us-central1
+      - --platform=managed
+      - --allow-unauthenticated
+      - --memory=2Gi
+      - --cpu=2
+      - --timeout=300
+      - --set-env-vars=GOOGLE_CLOUD_PROJECT=$PROJECT_ID
+
+  # Deploy frontend to Firebase
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        cd frontend
+        npm install
+        VITE_API_URL=$(gcloud run services describe accesspilot-backend --region=us-central1 --format='value(status.url)') npm run build
+        npx firebase deploy --only hosting --token=$_FIREBASE_TOKEN
+
+substitutions:
+  _FIREBASE_TOKEN: ''
+
+options:
+  logging: CLOUD_LOGGING_ONLY
