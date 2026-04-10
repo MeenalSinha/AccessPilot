@@ -104,11 +104,61 @@ def emulated_vision_response(prompt: str, screenshot_b64: str) -> str:
     })
 
 def emulated_text_response(prompt: str) -> str:
+    # Match specific demo scenarios to provide realistic step counts
+    p_lower = prompt.lower()
+    
+    if "flight" in p_lower:
+        goal = "Find cheapest flight"
+        steps = [
+            {"step_number": 1, "description": "Navigate to flight search page", "reasoning": "Initial access"},
+            {"step_number": 2, "description": "Enter origin and destination", "reasoning": "Input route data"},
+            {"step_number": 3, "description": "Select travel dates", "reasoning": "Input temporal data"},
+            {"step_number": 4, "description": "Initiate search", "reasoning": "Fetch results"},
+            {"step_number": 5, "description": "Sort by price (low to high)", "reasoning": "Optimal selection"},
+            {"step_number": 6, "description": "Identify and select cheapest option", "reasoning": "Goal completion"},
+        ]
+    elif "registration" in p_lower or "form" in p_lower:
+        goal = "Automate form filling"
+        steps = [
+            {"step_number": 1, "description": "Navigate to form page", "reasoning": "Initial access"},
+            {"step_number": 2, "description": "Detect input fields", "reasoning": "Visual analysis"},
+            {"step_number": 3, "description": "Map user data to fields", "reasoning": "Data binding"},
+            {"step_number": 4, "description": "Fill all detected fields", "reasoning": "Data entry"},
+            {"step_number": 5, "description": "Submit form and verify success", "reasoning": "Finalization"},
+        ]
+    elif "invoice" in p_lower:
+        goal = "Bulk download invoices"
+        steps = [
+            {"step_number": 1, "description": "Navigate to billing dashboard", "reasoning": "Initial access"},
+            {"step_number": 2, "description": "Identify invoice list", "reasoning": "Visual analysis"},
+            {"step_number": 3, "description": "Apply 'last month' date filter", "reasoning": "Filtering"},
+            {"step_number": 4, "description": "Select all filtered items", "reasoning": "Batch selection"},
+            {"step_number": 5, "description": "Initiate download", "reasoning": "Execution"},
+            {"step_number": 6, "description": "Verify download status", "reasoning": "Monitoring"},
+            {"step_number": 7, "description": "Save to persistent storage", "reasoning": "Persistence"},
+        ]
+    elif "settings" in p_lower or "dark mode" in p_lower:
+        goal = "Toggle Dark Mode"
+        steps = [
+            {"step_number": 1, "description": "Navigate to account settings", "reasoning": "Initial access"},
+            {"step_number": 2, "description": "Locate Appearance/Theme section", "reasoning": "Navigation"},
+            {"step_number": 3, "description": "Identify Dark Mode toggle", "reasoning": "Visual analysis"},
+            {"step_number": 4, "description": "Switch theme and confirm change", "reasoning": "Execution"},
+        ]
+    else:
+        goal = "General Automated Task"
+        steps = [
+            {"step_number": 1, "description": "Navigate to target URL", "reasoning": "Start task"},
+            {"step_number": 2, "description": "Analyze page state", "reasoning": "Visual assessment"},
+            {"step_number": 3, "description": "Execute requested action", "reasoning": "Advance task"},
+            {"step_number": 4, "description": "Verify completion", "reasoning": "Finalization"}
+        ]
+
     return json.dumps({
-        "goal": "Emulated Task",
-        "steps": [
-            {"step_number": 1, "description": "Navigate to URL", "reasoning": "Start task", "expected_outcome": "Loaded"},
-            {"step_number": 2, "description": "Execute action", "reasoning": "Advance task", "expected_outcome": "Finished"}
-        ],
-        "estimated_steps": 2, "risk_factors": [], "success_criteria": "Done", "irreversible_actions": []
+        "goal": goal,
+        "steps": steps,
+        "estimated_steps": len(steps), 
+        "risk_factors": [], 
+        "success_criteria": "Task completed successfully", 
+        "irreversible_actions": []
     })
