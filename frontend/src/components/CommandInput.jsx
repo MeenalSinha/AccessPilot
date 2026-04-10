@@ -67,7 +67,6 @@ export default function CommandInput({ onStart, onStop, isRunning, disabled }) {
 
   return (
     <div style={{ background:'var(--white)', border:'1px solid var(--border)', borderRadius:'var(--radius-lg)', overflow:'hidden', boxShadow:'var(--shadow)' }}>
-      {/* Main input */}
       {/* Main input & Send Button */}
       <div style={{ padding:'12px 14px 10px', display:'flex', gap:10 }}>
         <div style={{ flex:1 }}>
