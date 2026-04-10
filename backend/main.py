@@ -12,6 +12,7 @@ import signal
 import sys
 import uuid
 from contextlib import asynccontextmanager
+from typing import Optional
 
 import uvicorn
 from dotenv import load_dotenv
@@ -34,6 +35,7 @@ logger = logging.getLogger(__name__)
 from core.state import session_manager, ws_manager
 from engine.automation import engine as automation_engine
 from api.routes import router as api_router
+from core.database import init_db
 
 
 def _handle_sigterm(*_):
@@ -46,10 +48,14 @@ signal.signal(signal.SIGINT,  _handle_sigterm)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("AccessPilot starting (version=1.0.0)")
+    logger.info("AccessPilot starting (version=1.1.0)")
     # Attach to app.state for middleware / diagnostic introspection
     app.state.session_manager = session_manager
     app.state.ws_manager = ws_manager
+    
+    # Initialize real database
+    await init_db()
+    
     yield
     logger.info("Shutting down — cleaning up sessions and browsers")
     await session_manager.cleanup_all()
@@ -101,38 +107,33 @@ app.include_router(api_router, prefix="/api/v1")
 
 
 @app.get("/health", tags=["System"])
-async def health():
-    """Deep health check — Vertex AI status, session count."""
-    project = os.environ.get("GOOGLE_CLOUD_PROJECT", "").strip()
-    vertex_configured = bool(project and project not in ("your-project-id", ""))
-
-    vertex_available = False
-    if vertex_configured:
-        try:
-            from core.gemini_client import _ensure_vertex_init
-            vertex_available = _ensure_vertex_init()
-        except Exception:
-            pass
-
-    running_sessions = sum(1 for s in session_manager._sessions.values() if s.is_running)
-
+async def health_check():
+    """Deep health check — Vertex AI status, production readiness."""
+    from core.gemini_client import _ensure_vertex_init
+    vertex_ok = _ensure_vertex_init()
     return {
-        "status": "ok",
-        "version": "1.0.0",
-        "vertex_configured": vertex_configured,
-        "vertex_available": vertex_available,
-        "vertex_project": project or "not-set",
-        "running_sessions": running_sessions,
+        "status": "healthy" if vertex_ok else "degraded",
+        "version": "1.1.0",
+        "production_ready": vertex_ok,
+        "vertex_ai": "configured" if vertex_ok else "missing_project_id",
+        "browser_engine": "playwright",
         "auth_enabled": bool(_API_KEY),
     }
 
 
 @app.websocket("/ws/{session_id}")
-async def websocket_endpoint(websocket: WebSocket, session_id: str):
+async def websocket_endpoint(websocket: WebSocket, session_id: str, token: Optional[str] = None):
     safe_id = _sanitise_session_id(session_id)
     if not safe_id:
         await websocket.close(code=1008)
         return
+    
+    # Enforce API key on WS if configured
+    if _API_KEY and token != _API_KEY:
+        logger.warning(f"Unauthorized WS connection attempt for {safe_id}")
+        await websocket.close(code=1008)
+        return
+
     await ws_manager.connect(safe_id, websocket)
     try:
         while True:

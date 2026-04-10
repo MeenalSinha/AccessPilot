@@ -5,12 +5,14 @@ Fix: Session TTL — completed/errored sessions auto-expire after SESSION_TTL_MI
 Fix: list_sessions uses model_dump() (Pydantic v2) with dict() fallback.
 """
 import asyncio
+import json
 import logging
 import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional
 
 from core.models import AgentStatus, TaskPlan
+from core.database import save_session, log_action as db_log_action
 
 logger = logging.getLogger(__name__)
 
@@ -39,12 +41,19 @@ class AgentSession:
     def get_latest_screenshot(self) -> Optional[str]:
         return self.screenshots[-1] if self.screenshots else None
 
-    def log_action(self, action_data: dict):
+    async def log_action(self, action_data: dict):
         self.action_log.append(action_data)
+        await db_log_action(self.session_id, action_data)
 
-    def mark_finished(self):
+    async def mark_finished(self):
         self.is_running = False
         self.finished_at = datetime.now(timezone.utc)
+        await save_session(
+            self.session_id, 
+            self.is_running, 
+            self._task_dict() or {}, 
+            self.finished_at
+        )
 
     def is_expired(self) -> bool:
         if self.is_running:
@@ -58,9 +67,13 @@ class AgentSession:
         if self.task is None:
             return None
         try:
-            return self.task.model_dump()
-        except AttributeError:
-            return self.task.dict()
+            return self.task.model_dump(mode="json")
+        except (AttributeError, TypeError):
+            try:
+                # Fallback for simpler objects or older pydantic
+                return json.loads(self.task.json())
+            except:
+                return self.task.dict()
 
 
 class SessionManager:
@@ -102,7 +115,7 @@ class SessionManager:
                 await session.agent_task
             except asyncio.CancelledError:
                 pass
-        session.mark_finished()
+        await session.mark_finished()
         logger.info(f"Session stopped: {session_id}")
 
     async def cleanup_all(self):
@@ -121,5 +134,3 @@ class SessionManager:
             }
             for sid, s in self._sessions.items()
         ]
-        self.pending_confirmation = None   # dict {"approved": bool}
-        self.confirmation_event   = None   # asyncio.Event

@@ -15,14 +15,15 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT:-your-project-id}
+      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT:-}
       - GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION:-us-central1}
-      - GOOGLE_APPLICATION_CREDENTIALS=/secrets/gcp-key.json
+      - GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS:-/secrets/gcp-key.json}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-*}
       - API_KEY=${API_KEY:-}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     volumes:
-      - ${GCP_KEY_PATH:-./backend/gcp-key.json}:/secrets/gcp-key.json:ro
+      # If running in Demo Mode (no GCP), this volume can be omitted or pointed to a dummy file.
+      - ${GCP_KEY_PATH:-./backend/.gitkeep}:/secrets/gcp-key.json:ro
     restart: unless-stopped
     # Resource limits — prevent runaway Playwright processes
     deploy:

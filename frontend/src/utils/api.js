@@ -1,8 +1,13 @@
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const VITE_API_KEY = import.meta.env.VITE_API_KEY || ''
 
 async function request(path, options = {}) {
+  const headers = { 'Content-Type': 'application/json', ...options.headers }
+  if (VITE_API_KEY) {
+    headers['x-api-key'] = VITE_API_KEY
+  }
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options.headers },
+    headers,
     ...options,
   })
   if (!res.ok) {

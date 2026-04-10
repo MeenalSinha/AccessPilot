@@ -9,6 +9,7 @@ import base64
 import logging
 import re
 import uuid
+from datetime import datetime, timezone
 from io import BytesIO
 from typing import Optional
 
@@ -131,8 +132,23 @@ async def stop_agent(body: StopRequest):
 
 @router.get("/sessions")
 async def list_sessions():
-    """List all known sessions (running and recently completed)."""
-    return {"sessions": session_manager.list_sessions()}
+    """List all sessions from combined memory and persistent database."""
+    from core.database import get_all_sessions
+    active = session_manager.list_sessions()
+    history = await get_all_sessions()
+    
+    # Merge history into list, avoiding duplicates with active sessions
+    active_ids = {s["session_id"] for s in active}
+    for h in history:
+        if h["session_id"] not in active_ids:
+            active.append({
+                "session_id": h["session_id"],
+                "is_running": bool(h["is_running"]),
+                "created_at": h["created_at"],
+                "task": json.loads(h["task_json"]) if h["task_json"] else None,
+                "persistent": True
+            })
+    return {"sessions": active}
 
 
 @router.get("/session/{session_id}")
@@ -226,7 +242,7 @@ async def get_demo_scenarios():
 async def run_demo():
     """
     Runs a real end-to-end agent loop against a built-in HTML demo page.
-    Works without GCP credentials — CV-assisted mock used for Gemini in that case.
+    REQUIRES valid Gemini/Vertex AI credentials.
     Returns full trace: screenshots, CV regions, AI analysis, actions executed.
     """
     from engine.automation import BrowserSession
@@ -304,6 +320,10 @@ function book(airline, price) {
             "Find the cheapest flight and click Book",
             "AccessPilot demo flight search page",
         )
+        
+        # PERSIST DEMO TO DB
+        from core.database import save_session, log_action as db_log_action
+        await save_session(session_id, True, plan, None)
 
         previous_actions = []
         # 4-step scripted demo: fill → search → book → verify
@@ -358,7 +378,7 @@ function book(airline, price) {
                 f"Step {step_num}: {ai_action.get('action_type')} — {ai_action.get('explanation', '')[:60]}"
             )
 
-            steps_trace.append({
+            step_data = {
                 "step": step_num,
                 "plan_description": plan_step["description"],
                 "screenshot_before": sc_before,
@@ -368,32 +388,42 @@ function book(airline, price) {
                     "page_description": analysis.get("page_description", ""),
                     "elements_found": len(analysis.get("ui_elements", [])),
                     "suggested_next": analysis.get("suggested_next_action", ""),
-                    "is_mock": analysis.get("mock", False),
                 },
                 "ai_action": {
                     "type": ai_action.get("action_type"),
                     "explanation": ai_action.get("explanation", ""),
-                    "is_mock": ai_action.get("mock", False),
                 },
                 "real_action": {
                     "type": action_label,
                     "result": str(real_value) if real_value else "executed",
                 },
+            }
+            steps_trace.append(step_data)
+            
+            # LOG TO DB
+            await db_log_action(session_id, {
+                "step": step_num,
+                "ai_action": ai_action.get("action_type"),
+                "real_action": action_label,
+                "success": True
             })
 
         final_status = await browser.page.locator("#status").inner_text()
         task_complete = "Booked" in final_status
 
     finally:
+        from core.database import save_session
+        await save_session(session_id, False, plan, datetime.now(timezone.utc))
         await browser.stop()
 
-    demo = is_demo_mode()
+    from core.gemini_client import _ensure_vertex_init
+    vertex_ok = _ensure_vertex_init()
     return {
         "session_id": session_id,
         "task": "Find cheapest flight and book it",
         "task_complete": task_complete,
         "final_status": final_status,
-        "demo_mode": demo,
+        "production_ready": vertex_ok,
         "plan": plan,
         "steps": steps_trace,
         "components": {
@@ -401,10 +431,9 @@ function book(airline, price) {
             "screenshots": "REAL — PNG captured → JPEG compressed",
             "opencv": "REAL — contour/edge detection on live screenshots",
             "gemini": (
-                "MOCK (Demo Mode) — CV-assisted, reflects real page structure. "
-                "Set GOOGLE_CLOUD_PROJECT for live Vertex AI."
-                if demo else
-                "REAL — Vertex AI Gemini 1.5 Pro"
+                "STRICT PRODUCTION — Vertex AI Gemini 1.5 Pro"
+                if vertex_ok else
+                "ERROR — Vertex AI not configured"
             ),
         },
     }

@@ -50,8 +50,10 @@ export function useAgentSocket(sessionId, onEvent) {
     }
 
     let ws
+    const token = import.meta.env.VITE_API_KEY || ''
+    const url = `${WS_BASE}/ws/${sessionId}${token ? `?token=${token}` : ''}`
     try {
-      ws = new WebSocket(`${WS_BASE}/ws/${sessionId}`)
+      ws = new WebSocket(url)
     } catch (err) {
       console.error('[WS] Failed to construct WebSocket:', err)
       scheduleReconnect()

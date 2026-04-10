@@ -115,6 +115,9 @@ class AgentOrchestrator:
                 status=AgentStatus.RUNNING,
             )
             session.task = task
+            # Persist plan to DB immediately
+            from core.database import save_session
+            await save_session(sid, session.is_running, session._task_dict() or {}, None)
 
             # Broadcast plan with irreversible step info for UI warning
             plan_payload = _plan_dict(task)
@@ -132,6 +135,14 @@ class AgentOrchestrator:
                     "action_type": "NAVIGATE",
                     "url": target_url,
                     "explanation": f"Opening {target_url}",
+                })
+                # Log to DB
+                await session.log_action({
+                    "step": 0,
+                    "action_type": "NAVIGATE",
+                    "url": target_url,
+                    "success": nav.get("success", False),
+                    "message": nav.get("message", "")
                 })
                 lvl = "info" if nav.get("success") else "warning"
                 await self.ws.broadcast_log(sid, lvl, nav.get("message", ""))
@@ -161,7 +172,7 @@ class AgentOrchestrator:
                         screenshot_b64=screenshot_b64,
                         task_goal=task.goal,
                         current_step=current_step_desc,
-                        previous_actions=[],   # memory replaces raw strings
+                        previous_actions=[],   # preserved for compatibility, but memory.to_context_string() is primary
                         task_memory_context=memory.to_context_string(),
                     )
                 except Exception as e:
@@ -226,7 +237,7 @@ class AgentOrchestrator:
                         ui_elements=analysis.get("ui_elements", []),
                         task_goal=task.goal,
                         current_step_description=current_step_desc,
-                        previous_actions=[],  # memory replaces raw strings
+                        previous_actions=[],  # memory is primary
                         screen_width=browser_session.viewport_width,
                         screen_height=browser_session.viewport_height,
                         cv_regions=cv_regions,
@@ -330,6 +341,18 @@ class AgentOrchestrator:
                 # ── Execute using validated engine dict ──────────────────
                 exec_result = await browser_session.execute_action(validated.to_engine_dict())
                 action.success = exec_result.get("success", False)
+                
+                # Persistent Log
+                await session.log_action({
+                    "step": step_count,
+                    "action_type": validated.action_type,
+                    "target": validated.target,
+                    "explanation": validated.explanation or validated.reason,
+                    "success": action.success,
+                    "confidence": validated.confidence,
+                    "grounding_source": validated.grounding_source,
+                    "result": exec_result
+                })
 
                 logger.info(
                     f"[{sid}] step={step_count} action={action.action_type} "

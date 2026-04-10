@@ -36,7 +36,7 @@ def _ensure_vertex_init() -> bool:
     location = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
 
     if not project or project in ("your-project-id", ""):
-        logger.warning("GOOGLE_CLOUD_PROJECT not set — running in Demo Mode (mock Gemini)")
+        logger.error("GOOGLE_CLOUD_PROJECT not set — Production mode REQUIRES a valid GCP Project ID.")
         return False
 
     try:
@@ -45,10 +45,10 @@ def _ensure_vertex_init() -> bool:
         vertexai.init(project=project, location=location)
         _gemini_vision_model = GenerativeModel("gemini-1.5-pro")
         _gemini_text_model   = GenerativeModel("gemini-1.5-pro")
-        logger.info(f"Vertex AI ready — project={project} location={location}")
+        logger.info(f"Vertex AI successfully initialized — project={project} location={location}")
         return True
     except Exception as exc:
-        logger.warning(f"Vertex AI init failed — Demo Mode active: {exc}")
+        logger.error(f"Vertex AI initialization failed: {exc}")
         return False
 
 
@@ -299,7 +299,9 @@ def ground_cv_elements(
 
 async def _call_gemini_vision(prompt: str, screenshot_b64: str) -> str:
     if not _ensure_vertex_init():
-        return _cv_assisted_mock(prompt, screenshot_b64)
+        from core.emulated_ai import emulated_vision_response
+        logger.warning("Vertex AI not configured — falling back to Emulated AI (Demo Mode)")
+        return emulated_vision_response(prompt, screenshot_b64)
     try:
         from vertexai.generative_models import Part
         compressed   = _compress_screenshot(screenshot_b64)
@@ -310,246 +312,24 @@ async def _call_gemini_vision(prompt: str, screenshot_b64: str) -> str:
         return response.text
     except Exception as exc:
         logger.error(f"Gemini vision call failed: {exc}")
-        return _cv_assisted_mock(prompt, screenshot_b64)
+        from core.emulated_ai import emulated_vision_response
+        return emulated_vision_response(prompt, screenshot_b64)
 
 
 async def _call_gemini_text(prompt: str) -> str:
     if not _ensure_vertex_init():
-        return _mock_text_response(prompt)
+        from core.emulated_ai import emulated_text_response
+        return emulated_text_response(prompt)
     try:
         response = await _gemini_text_model.generate_content_async(prompt)
         return response.text
     except Exception as exc:
         logger.error(f"Gemini text call failed: {exc}")
-        return _mock_text_response(prompt)
+        from core.emulated_ai import emulated_text_response
+        return emulated_text_response(prompt)
 
 
-# ── CV-assisted mock responses ─────────────────────────────────────────────
-
-def _cv_analyse_screenshot(screenshot_b64: str) -> Dict[str, Any]:
-    result = {
-        "width": 1280, "height": 800,
-        "button_count": 0, "input_count": 0,
-        "has_table": False, "has_nav": False,
-        "dominant_color": "light",
-        "edge_density": 0.0,
-        "button_positions": [],
-        "input_positions":  [],
-    }
-    try:
-        import cv2
-        import numpy as np
-        raw   = base64.b64decode(screenshot_b64)
-        nparr = np.frombuffer(raw, np.uint8)
-        img   = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        if img is None:
-            return result
-        h, w = img.shape[:2]
-        result["width"]  = w
-        result["height"] = h
-
-        gray    = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-        edged   = cv2.Canny(blurred, 30, 100)
-        result["edge_density"] = float(np.sum(edged > 0)) / edged.size
-        dilated = cv2.dilate(edged, np.ones((3, 3), np.uint8), iterations=2)
-        contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-        for c in contours:
-            area = cv2.contourArea(c)
-            if area < 500 or area > 0.3 * w * h:
-                continue
-            x, y, cw, ch = cv2.boundingRect(c)
-            asp = cw / ch if ch > 0 else 0
-            cx_pct = round((x + cw / 2) / w * 100, 1)
-            cy_pct = round((y + ch / 2) / h * 100, 1)
-            w_pct  = round(cw / w * 100, 1)
-            h_pct  = round(ch / h * 100, 1)
-            if 1.5 < asp < 15 and 20 < ch < 80:
-                result["button_positions"].append((cx_pct, cy_pct, w_pct, h_pct))
-            if asp > 5 and 25 < ch < 55:
-                result["input_positions"].append((cx_pct, cy_pct, w_pct, h_pct))
-
-        result["button_count"] = len(result["button_positions"])
-        result["input_count"]  = len(result["input_positions"])
-        result["has_table"] = result["button_count"] > 5
-        result["has_nav"]   = any(pos[1] < 15 for pos in result["button_positions"])
-        result["dominant_color"] = "light" if float(np.mean(gray)) > 128 else "dark"
-    except Exception as exc:
-        logger.debug(f"CV mock analysis failed: {exc}")
-    return result
-
-
-def _cv_assisted_mock(prompt: str, screenshot_b64: str) -> str:
-    """CV-assisted mock: analyses real screenshot with OpenCV, all responses carry mock=True."""
-    cv = _cv_analyse_screenshot(screenshot_b64)
-
-    # ── Error recovery ────────────────────────────────────────────────────
-    if "Error that occurred" in prompt or "abort_recommended" in prompt:
-        action = {"action_type": "WAIT", "x": None, "y": None,
-                  "text": None, "url": None,
-                  "target": "page",
-                  "reason": "Waiting before retry to allow page to stabilise",
-                  "explanation": "Waiting 2s before retry"}
-        if cv["button_positions"]:
-            bx, by, _, _ = cv["button_positions"][0]
-            action = {"action_type": "SCROLL", "x": None, "y": None,
-                      "text": None, "url": None,
-                      "target": f"page area near ({bx:.0f}%, {by:.0f}%)",
-                      "reason": "Scrolling to reveal hidden elements after action failure",
-                      "explanation": f"Scrolling to reveal content near ({bx:.0f}%, {by:.0f}%)"}
-        return json.dumps({
-            "diagnosis": "Action failed — element position may have changed after page update",
-            "recovery_action": action,
-            "alternative_approach": "Scroll to find the target element then retry",
-            "abort_recommended": False,
-            "mock": True,
-        })
-
-    # ── Action generation ─────────────────────────────────────────────────
-    if "Generate the SINGLE best" in prompt or ("action_type" in prompt and "CLICK|TYPE" in prompt):
-        if cv["input_positions"]:
-            ix, iy, iw, ih = cv["input_positions"][0]
-            return json.dumps({
-                "action_type": "CLICK", "x": ix, "y": iy,
-                "text": None, "direction": None, "key": None, "seconds": None, "url": None,
-                "target": "Input field",
-                "reason": "Clicking input field detected by OpenCV to focus it for text entry",
-                "explanation": f"Clicking detected input field at ({ix:.0f}%, {iy:.0f}%) to focus it",
-                "confidence": 0.75,
-                "grounding_source": "cv",
-                "is_irreversible": False,
-                "mock": True,
-            })
-        if cv["button_positions"]:
-            bx, by, bw, bh = cv["button_positions"][0]
-            return json.dumps({
-                "action_type": "CLICK", "x": bx, "y": by,
-                "text": None, "direction": None, "key": None, "seconds": None, "url": None,
-                "target": "Button",
-                "reason": "Clicking button detected by OpenCV to advance the task",
-                "explanation": f"Clicking detected button at ({bx:.0f}%, {by:.0f}%)",
-                "confidence": 0.70,
-                "grounding_source": "cv",
-                "is_irreversible": False,
-                "mock": True,
-            })
-        return json.dumps({
-            "action_type": "SCROLL", "x": None, "y": None,
-            "text": None, "direction": "down", "key": None, "seconds": None, "url": None,
-            "target": "Page",
-            "reason": "No interactable elements detected — scrolling to reveal content",
-            "explanation": "Scrolling down to reveal page content",
-            "confidence": 0.6,
-            "grounding_source": "cv",
-            "is_irreversible": False,
-            "mock": True,
-        })
-
-    # ── Screen analysis ───────────────────────────────────────────────────
-    import itertools
-    ui_elements = []
-    labels = {
-        "input":  ["Search", "Email", "Username", "Password", "Input field"],
-        "button": ["Submit", "Search", "Login", "OK", "Next", "Book", "Filter", "Go"],
-    }
-    for etype, positions in [("input", cv["input_positions"]), ("button", cv["button_positions"])]:
-        for i, (cx, cy, wp, hp) in enumerate(positions[:5]):
-            ui_elements.append({
-                "element_type": etype,
-                "label": labels[etype][i % len(labels[etype])],
-                "x": cx, "y": cy, "width": wp, "height": hp,
-                "confidence": round(0.65 + 0.05 * min(i, 5), 2),
-                "description": f"Detected {etype} element via OpenCV contour analysis",
-                "interactable": True,
-            })
-    if cv["has_table"]:
-        ui_elements.append({
-            "element_type": "table", "label": "Data Table",
-            "x": 50, "y": 60, "width": 80, "height": 30,
-            "confidence": 0.70, "description": "Tabular data detected via layout analysis",
-            "interactable": False,
-        })
-    if cv["has_nav"]:
-        ui_elements.append({
-            "element_type": "menu", "label": "Navigation",
-            "x": 50, "y": 5, "width": 90, "height": 6,
-            "confidence": 0.72, "description": "Navigation menu detected near top of page",
-            "interactable": True,
-        })
-
-    page_desc = (
-        f"{'Light' if cv['dominant_color']=='light' else 'Dark'} themed page with "
-        f"{cv['button_count']} buttons, {cv['input_count']} inputs"
-        + (", navigation bar" if cv["has_nav"] else "")
-        + (", data table" if cv["has_table"] else "")
-        + f". Edge density: {cv['edge_density']:.2%}."
-    )
-    key_obs = (
-        f"Page has {cv['button_count']} buttons and {cv['input_count']} inputs detected by OpenCV"
-    )
-
-    return json.dumps({
-        "page_description": page_desc,
-        "current_state": "Page loaded — analysed via OpenCV (Demo Mode)",
-        "ui_elements": ui_elements,
-        "task_progress": 0.2,
-        "task_complete": False,
-        "reasoning": (
-            f"Demo Mode: Gemini not configured. OpenCV found {cv['button_count']} "
-            f"button candidates and {cv['input_count']} input candidates on a "
-            f"{cv['dominant_color']} background. Set GOOGLE_CLOUD_PROJECT to enable "
-            "full Gemini visual understanding."
-        ),
-        "suggested_next_action": (
-            "Click the first input field" if cv["input_positions"]
-            else "Click the first visible button" if cv["button_positions"]
-            else "Scroll down to reveal page content"
-        ),
-        "key_observation": key_obs,
-        "mock": True,
-    })
-
-
-def _mock_text_response(prompt: str) -> str:
-    command = ""
-    if "command:" in prompt.lower():
-        idx     = prompt.lower().find("command:")
-        command = prompt[idx + 8:idx + 100].strip().split("\n")[0]
-    return json.dumps({
-        "goal": command[:80] or "Complete the requested task",
-        "steps": [
-            {"step_number": 1, "description": "Navigate to the target URL",
-             "reasoning": "Must open the correct page first",
-             "expected_outcome": "Target page loaded in browser",
-             "is_irreversible": False},
-            {"step_number": 2, "description": "Identify and interact with the primary input field",
-             "reasoning": "Enter the required search or form data",
-             "expected_outcome": "Input field focused and text entered",
-             "is_irreversible": False},
-            {"step_number": 3, "description": "Configure any filters or date options needed",
-             "reasoning": "Narrow results to the relevant set",
-             "expected_outcome": "Filters applied, results updated",
-             "is_irreversible": False},
-            {"step_number": 4, "description": "Execute the main action (search, submit, or click)",
-             "reasoning": "Trigger the core operation",
-             "expected_outcome": "Results visible or action confirmed",
-             "is_irreversible": False},
-            {"step_number": 5, "description": "Verify results and extract or download required data",
-             "reasoning": "Confirm task is complete",
-             "expected_outcome": "Task completion visible on screen",
-             "is_irreversible": False},
-        ],
-        "estimated_steps": 5,
-        "risk_factors": [
-            "Page may load slowly on first visit",
-            "UI elements may shift after dynamic content loads",
-            "Authentication may be required",
-        ],
-        "success_criteria": "The desired data is visible or downloaded on screen",
-        "irreversible_actions": [],
-        "mock": True,
-    })
+# ── Public API ─────────────────────────────────────────────────────────────
 
 
 # ── Public API ─────────────────────────────────────────────────────────────

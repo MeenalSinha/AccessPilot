@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Send, Mic, MicOff, Square, ChevronDown, ChevronUp, Globe, History, X } from 'lucide-react'
+import { Send, Mic, MicOff, Square, ChevronDown, ChevronUp, Globe, History, X, RefreshCw } from 'lucide-react'
 import { useVoiceInput } from '../hooks/useVoiceInput.js'
 
 const QUICK_COMMANDS = [
@@ -68,20 +68,40 @@ export default function CommandInput({ onStart, onStop, isRunning, disabled }) {
   return (
     <div style={{ background:'var(--white)', border:'1px solid var(--border)', borderRadius:'var(--radius-lg)', overflow:'hidden', boxShadow:'var(--shadow)' }}>
       {/* Main input */}
-      <div style={{ padding:'12px 14px 8px' }}>
-        <label style={{ fontSize:11, fontWeight:600, color:'var(--text-muted)', letterSpacing:'0.06em', textTransform:'uppercase', display:'block', marginBottom:8 }}>
-          Command
-        </label>
-        <textarea
-          ref={textareaRef}
-          value={command}
-          onChange={e => setCommand(e.target.value)}
-          onKeyDown={handleKey}
-          disabled={isRunning || disabled}
-          placeholder="Describe what the agent should do…"
-          rows={3}
-          style={{ width:'100%', resize:'none', border:'none', outline:'none', fontFamily:'var(--font-sans)', fontSize:14, lineHeight:1.6, color:'var(--text-primary)', background:'transparent' }}
-        />
+      {/* Main input & Send Button */}
+      <div style={{ padding:'12px 14px 10px', display:'flex', gap:10 }}>
+        <div style={{ flex:1 }}>
+          <label style={{ fontSize:11, fontWeight:600, color:'var(--text-muted)', letterSpacing:'0.06em', textTransform:'uppercase', display:'block', marginBottom:8 }}>
+            What should I do?
+          </label>
+          <textarea
+            ref={textareaRef}
+            value={command}
+            onChange={e => setCommand(e.target.value)}
+            onKeyDown={handleKey}
+            disabled={isRunning || disabled}
+            placeholder="Type a command (e.g., 'Book a flight' or 'Search news')…"
+            rows={2}
+            style={{ width:'100%', resize:'none', border:'none', outline:'none', fontFamily:'var(--font-sans)', fontSize:14, lineHeight:1.5, color:'var(--text-primary)', background:'transparent' }}
+          />
+        </div>
+        <div style={{ display:'flex', alignItems:'flex-end', paddingBottom:2 }}>
+          <button
+            id="send-command-btn"
+            onClick={handleSubmit}
+            disabled={!command.trim() || isRunning || disabled}
+            style={{ 
+              width: 42, height: 42, borderRadius: 12, border: 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: (!command.trim() || isRunning || disabled) ? 'var(--surface-2)' : 'var(--text-primary)',
+              color: 'white', cursor: (!command.trim() || isRunning || disabled) ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+              boxShadow: (!command.trim() || isRunning || disabled) ? 'none' : '0 4px 12px rgba(0,0,0,0.15)',
+            }}
+          >
+            {isRunning ? <RefreshCw size={18} style={{ animation: 'spin 2s linear infinite' }} /> : <Send size={18} />}
+          </button>
+        </div>
       </div>
 
       {/* Quick commands */}
@@ -166,13 +186,6 @@ export default function CommandInput({ onStart, onStop, isRunning, disabled }) {
               <Square size={11} fill="currentColor"/> Stop
             </button>
           )}
-          <button
-            onClick={handleSubmit}
-            disabled={!command.trim() || isRunning || disabled}
-            style={{ display:'flex', alignItems:'center', gap:5, background:(!command.trim()||isRunning||disabled)?'var(--surface-2)':'var(--text-primary)', color:(!command.trim()||isRunning||disabled)?'var(--text-muted)':'white', border:'none', borderRadius:6, padding:'7px 14px', fontSize:12, fontWeight:600, cursor:(!command.trim()||isRunning||disabled)?'not-allowed':'pointer', transition:'var(--transition)' }}
-          >
-            <Send size={11}/> {isRunning ? 'Running…' : 'Run Agent'}
-          </button>
         </div>
       </div>
     </div>
